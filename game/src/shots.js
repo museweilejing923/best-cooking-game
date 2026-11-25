@@ -1,6 +1,8 @@
 // Sizzle & Serve — deterministic screenshot states.
-// ?shot=start|play|assemble|serve&seed=1 builds the exact same scene every
-// time, so screenshots are reproducible and the judge sees the real game.
+// ?shot=start|play|cover|orders|assemble|serve&seed=1 builds the exact same
+// scene every time, so screenshots are reproducible and the judge sees the
+// real game. `cover` is the finished-dish hero shot: full plate, SERVE lit,
+// a patty on the grill, a score popup mid-float.
 
 import { makeRng } from './state.js';
 import { recipeById } from './config.js';
@@ -34,8 +36,28 @@ export function applyShot(state, shot) {
     fixedOrders(state, [['classic', 32, 50], ['cheese', 18, 50], ['snack', 41, 55]]);
     state.plate = ['bun', 'patty'];
     state.grill = [{ doneness: 62 }, null];
+    state.steamPhase = 0.35;
     state.flash = '';
     state.flashTimer = 0;
+    return state;
+  }
+  if (shot === 'cover') {
+    state.timeLeft = 121;
+    state.score = 122;
+    state.coins = 122;
+    state.combo = 4;
+    state.bestCombo = 4;
+    state.served = 6;
+    state.level = 2;
+    state.spawnTimer = 7;
+    fixedOrders(state, [['classic', 28, 50], ['cheese', 36, 50], ['snack', 19, 55]]);
+    state.plate = ['bun', 'patty', 'lettuce', 'tomato', 'bun'];
+    state.grill = [{ doneness: 70 }, null];
+    state.servePulse = 1;
+    state.steamPhase = 0.35;
+    state.popups = [{ text: '+$26', ttl: 0.7, max: 1 }];
+    state.flash = 'Classic Burger complete — serve it now!';
+    state.flashTimer = 99;
     return state;
   }
   if (shot === 'orders') {
@@ -66,6 +88,7 @@ export function applyShot(state, shot) {
     fixedOrders(state, [['classic', 38, 50], ['garden', 24, 50], ['cheese', 12, 45]]);
     state.plate = ['bun', 'patty', 'lettuce'];
     state.grill = [{ doneness: 78 }, { doneness: 22 }];
+    state.steamPhase = 0.35;
     state.flash = 'Lettuce on! Tomato next.';
     state.flashTimer = 99;
     return state;
@@ -83,6 +106,8 @@ export function applyShot(state, shot) {
     state.plate = ['bun', 'patty', 'lettuce', 'tomato', 'bun'];
     state.grill = [null, { doneness: 88 }];
     state.servePulse = 1;
+    state.steamPhase = 0.35;
+    state.popups = [{ text: '+$30', ttl: 0.7, max: 1 }];
     state.flash = 'Classic Burger complete — serve it now!';
     state.flashTimer = 99;
     return state;
