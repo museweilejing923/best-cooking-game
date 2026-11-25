@@ -18,6 +18,9 @@ const FIRST_SPAWN_DELAY_S = 6;
 const FLASH_LONG = 2, FLASH_WRONG = 1.6, FLASH_INFO = 1.4, FLASH_BRIEF = 1.2;
 // How long the SERVE button shakes when the plate does not match an order.
 export const SHAKE_DURATION = 0.4;
+// Score popups float up and fade over this long; steam puffs loop this fast.
+const POPUP_TTL = 1;
+const STEAM_CYCLE_S = 2.4;
 
 // Small deterministic RNG (mulberry32) so screenshot states never wobble.
 export function makeRng(seed) {
@@ -43,6 +46,8 @@ export function createState() {
     orders: [], plate: [], // ingredient ids, bottom to top
     grill: [null, null], // { doneness } per slot, null when empty
     flash: '', flashTimer: 0, servePulse: 0, shakeTimer: 0, muted: false, // transient message shown over the plate
+    popups: [], // score popups: { text, ttl, max }, float up over the SERVE panel
+    steamPhase: 0, // 0..1 loop driving the grill steam puffs
     rng: makeRng((Math.random() * 1e9) | 0),
   };
 }
@@ -165,6 +170,7 @@ export function servePlate(state) {
   state.orders = state.orders.filter((o) => o !== order);
   state.plate = [];
   state.servePulse = 1;
+  state.popups.push({ text: `+$${earned}`, ttl: POPUP_TTL, max: POPUP_TTL });
   const level = levelFor(state.served);
   if (level.level !== state.level) {
     state.level = level.level;
@@ -180,6 +186,11 @@ export function update(state, dt) {
   state.flashTimer = Math.max(0, state.flashTimer - dt);
   state.servePulse = Math.max(0, state.servePulse - dt * PULSE_DECAY_PER_S);
   state.shakeTimer = Math.max(0, (state.shakeTimer ?? 0) - dt);
+  state.steamPhase = ((state.steamPhase ?? 0) + dt / STEAM_CYCLE_S) % 1;
+  if (state.popups) {
+    for (const p of state.popups) p.ttl -= dt;
+    state.popups = state.popups.filter((p) => p.ttl > 0);
+  }
   if (state.timeLeft <= 0) {
     state.timeLeft = 0;
     state.screen = 'over';
