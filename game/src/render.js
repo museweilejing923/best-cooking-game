@@ -58,6 +58,50 @@ function fmtTime(s) {
   const sec = Math.floor(Math.max(0, s) % 60);
   return `${m}:${String(sec).padStart(2, '0')}`;
 }
+// ---- customer avatars -----------------------------------------------------
+// One simple round face per customer name: skin and hair picked from the
+// name's hash, so the face follows the name when orders rotate.
+const AVATAR_SKINS = ['#f6c89f', '#e8b184', '#c98d5f', '#8d5a3b'];
+const AVATAR_HAIRS = ['#3a2a1a', '#7c4527', '#e8a812', '#4f9c2e', '#5b6abf', '#e2574c'];
+function nameHash(name) { let h = 0; for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; }
+function drawAvatar(ctx, name, cx, cy, r) {
+  const h = nameHash(name);
+  const skin = AVATAR_SKINS[h % AVATAR_SKINS.length];
+  const hair = AVATAR_HAIRS[(h >> 3) % AVATAR_HAIRS.length];
+  const style = h % 3;
+  ctx.fillStyle = skin; circle(ctx, cx, cy, r); ctx.fill();
+  ctx.fillStyle = hair;
+  ctx.beginPath(); ctx.arc(cx, cy - r * 0.15, r * 0.98, Math.PI, 0); ctx.closePath(); ctx.fill();
+  if (style === 1) { circle(ctx, cx, cy - r * 0.95, r * 0.38); ctx.fill(); } // top bun
+  if (style === 2) { // side tufts
+    circle(ctx, cx - r * 0.85, cy + r * 0.1, r * 0.35); ctx.fill();
+    circle(ctx, cx + r * 0.85, cy + r * 0.1, r * 0.35); ctx.fill();
+  }
+  ctx.fillStyle = '#3a2a1a';
+  circle(ctx, cx - r * 0.36, cy + r * 0.05, r * 0.09); ctx.fill();
+  circle(ctx, cx + r * 0.36, cy + r * 0.05, r * 0.09); ctx.fill();
+  ctx.strokeStyle = '#3a2a1a'; ctx.lineWidth = Math.max(1.5, r * 0.09);
+  ctx.beginPath(); ctx.arc(cx, cy + r * 0.28, r * 0.42, 0.15 * Math.PI, 0.85 * Math.PI); ctx.stroke();
+  ctx.fillStyle = 'rgba(226,87,76,0.35)';
+  circle(ctx, cx - r * 0.55, cy + r * 0.32, r * 0.12); ctx.fill();
+  circle(ctx, cx + r * 0.55, cy + r * 0.32, r * 0.12); ctx.fill();
+}
+// ---- floor decor ----------------------------------------------------------
+// The strip below the counter was bare floor: a rug, a potted plant and a
+// baseboard fill it. Nothing here is clickable and no layout moved.
+function drawFloorDecor(ctx) {
+  ctx.fillStyle = '#8a5a33'; ctx.fillRect(0, 640, CANVAS_W, 6); // baseboard
+  panel(ctx, 440, 652, 400, 58, 14, '#b06a35', '#8a5a33', 3);
+  panel(ctx, 456, 660, 368, 42, 10, '#c98a4e');
+  ctx.fillStyle = '#ffd94d';
+  for (let i = 0; i < 5; i++) { circle(ctx, 500 + i * 70, 681, 7); ctx.fill(); }
+  ctx.fillStyle = '#58b368'; // potted plant, bottom-left corner
+  ellipse(ctx, 72, 664, 10, 22); ctx.fill();
+  ellipse(ctx, 56, 672, 9, 16); ctx.fill();
+  ellipse(ctx, 88, 672, 9, 16); ctx.fill();
+  ctx.fillStyle = '#d63a2f'; ctx.beginPath();
+  ctx.moveTo(50, 684); ctx.lineTo(94, 684); ctx.lineTo(88, 714); ctx.lineTo(56, 714); ctx.closePath(); ctx.fill();
+}
 // ---- food drawing ---------------------------------------------------------
 export function drawIngredient(ctx, id, cx, cy, w, burnt = false) {
   const h = w * 0.62;
@@ -136,8 +180,10 @@ function drawOrders(ctx, state) {
     const frac = Math.max(0, order.timeLeft / order.total);
     const urgent = order.timeLeft <= ORDER_URGENT_S;
     panel(ctx, x, y, ORDER.w, ORDER.h, 12, PAPER, urgent ? RED : TAN, urgent ? 3 : 2);
-    text(ctx, `#${order.id} ${CUSTOMER_NAMES[order.id % CUSTOMER_NAMES.length]}`, x + 14, y + 16, 14, C.ink, 'bold', 'left');
-    text(ctx, recipe.name, x + 14, y + 38, 16, '#8a4f2e', 'bold', 'left');
+    const customer = CUSTOMER_NAMES[order.id % CUSTOMER_NAMES.length];
+    drawAvatar(ctx, customer, x + 30, y + 24, 14);
+    text(ctx, `#${order.id} ${customer}`, x + 52, y + 16, 14, C.ink, 'bold', 'left');
+    text(ctx, recipe.name, x + 52, y + 38, 16, '#8a4f2e', 'bold', 'left');
     text(ctx, `$${recipe.price}`, x + 376, y + 16, 18, '#2e8b3a', 'bold', 'right');
     recipe.items.forEach((id, j) => drawIngredient(ctx, id, x + 228 + j * 22, y + 42, 22));
     bar(ctx, x + 14, y + 58, ORDER.barW, ORDER.barH, frac, '#e8dcc8', urgent ? RED : GREEN);
@@ -180,6 +226,13 @@ function drawGrill(ctx, state, actions) {
       drawIngredient(ctx, 'patty', gx + 70, gy + 30, 78, burnt);
       bar(ctx, gx + 10, gy + 58, 120, 8, Math.min(1, g.doneness / 100), '#444', burnt ? RED : done ? GREEN : GOLD);
       text(ctx, burnt ? 'BURNT!' : done ? 'READY — click!' : 'cooking…', gx + 70, gy + 10, 11, burnt ? '#ff8a7a' : '#fff', 'bold');
+      // Steam: three puffs rise off a cooking patty and fade, looped by
+      // state.steamPhase (frozen in screenshot states, so shots stay stable).
+      for (let i = 0; i < 3; i++) {
+        const frac = ((state.steamPhase ?? 0) + i / 3) % 1;
+        ctx.fillStyle = `rgba(255,255,255,${((1 - frac) * 0.5).toFixed(2)})`;
+        circle(ctx, gx + 42 + i * 26, gy + 12 - frac * 28, 4 + frac * 5); ctx.fill();
+      }
     }
     addRegion(`grill-${slot}`, gx, gy, GRILL_SLOT_W, GRILL_SLOT_H, () => actions.takeFromGrill(slot));
   });
@@ -227,6 +280,20 @@ function drawServe(ctx, state, actions) {
   text(ctx, enabled ? 'SERVE!' : 'SERVE', 0, -6, 24, '#fff');
   text(ctx, enabled ? `+$${order.reward} + tip` : 'finish a dish first', 0, 18, 12, '#fff');
   ctx.restore();
+  // Score popups: gold "+$N" rises off the SERVE button and fades.
+  for (const p of state.popups ?? []) {
+    const a = Math.max(0, Math.min(1, p.ttl / p.max));
+    const py = y + 58 - (1 - a) * 24;
+    ctx.save();
+    ctx.globalAlpha = a;
+    ctx.font = `bold 22px ${FONT}`;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.lineWidth = 4; ctx.strokeStyle = '#5b3a1e';
+    ctx.strokeText(p.text, x + 180, py);
+    ctx.fillStyle = '#ffd94d';
+    ctx.fillText(p.text, x + 180, py);
+    ctx.restore();
+  }
   addRegion('serve', x + 70, y + 61, 220, 68, () => actions.serve(), { enabled });
   panel(ctx, x + 70, y + 150, 220, 26, 8, hoveredId() === 'trash' ? '#ff8a7a' : RED);
   text(ctx, 'TRASH PLATE  (T)', x + 180, y + 164, 13, '#fff');
@@ -289,6 +356,7 @@ export function render(ctx, state, actions) {
   for (let x = 0; x < CANVAS_W; x += 80) ctx.fillRect(x, 300, 2, 420);
   ctx.fillStyle = C.counterTop; ctx.fillRect(0, 300, CANVAS_W, 340);
   ctx.fillStyle = C.counter; ctx.fillRect(0, 300, CANVAS_W, 10);
+  drawFloorDecor(ctx);
   drawHud(ctx, state, actions);
   drawOrders(ctx, state);
   drawCounter(ctx, state, actions);
